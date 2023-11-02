@@ -19,6 +19,7 @@ import (
 )
 
 // Github for testing purposes.
+//
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_github.go . Github
 type Github interface {
 	ListPullRequests([]githubv4.PullRequestState) ([]*PullRequest, error)
@@ -62,12 +63,7 @@ func NewGithubClient(s *Source) (*GithubClient, error) {
 	var client *http.Client
 	if s.UseGitHubApp {
 		var ghAppInstallationTransport *ghinstallation.Transport
-		if s.PrivateKeyFile != "" {
-			ghAppInstallationTransport, err = ghinstallation.NewKeyFromFile(transport, s.ApplicationID, s.InstallationID, s.PrivateKeyFile)
-			if err != nil {
-				return nil, fmt.Errorf("failed to generate application installation access token using private key file: %s", err)
-			}
-		} else {
+		if s.PrivateKey != "" {
 			ghAppInstallationTransport, err = ghinstallation.New(transport, s.ApplicationID, s.InstallationID, []byte(s.PrivateKey))
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate application installation access token using private key: %s", err)
