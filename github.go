@@ -19,6 +19,7 @@ import (
 )
 
 // Github for testing purposes.
+//
 //go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o fakes/fake_github.go . Github
 type Github interface {
 	ListPullRequests([]githubv4.PullRequestState) ([]*PullRequest, error)
@@ -59,17 +60,26 @@ func NewGithubClient(s *Source) (*GithubClient, error) {
 		ctx = context.TODO()
 	}
 
+	var client *http.Client
 	if s.UseGitHubApp {
-		ghAppInstallationTransport, err := ghinstallation.NewKeyFromFile(transport, s.AppID, s.InstallationID, s.PrivateKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate application installation access token: %s", err)
+		var ghAppInstallationTransport *ghinstallation.Transport
+		if s.PrivateKey != "" {
+			ghAppInstallationTransport, err = ghinstallation.New(transport, s.ApplicationID, s.InstallationID, []byte(s.PrivateKey))
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate application installation access token using private key: %s", err)
+			}
 		}
-		ctx = context.WithValue(context.TODO(), oauth2.HTTPClient, ghAppInstallationTransport)
-	}
 
-	client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: s.AccessToken},
-	))
+		// Client using ghinstallation transport
+		client = &http.Client{
+			Transport: ghAppInstallationTransport,
+		}
+	} else {
+		// Client using oauth2 wrapper
+		client = oauth2.NewClient(ctx, oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: s.AccessToken},
+		))
+	}
 
 	var v3 *github.Client
 	if s.V3Endpoint != "" {
