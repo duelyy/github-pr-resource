@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net/http"
 	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/bradleyfalzon/ghinstallation/v2"
 )
 
 // Git interface for testing purposes.
@@ -29,14 +32,36 @@ type Git interface {
 
 // NewGitClient ...
 func NewGitClient(source *Source, dir string, output io.Writer) (*GitClient, error) {
+
+	// We need a transport that we can update if using GitHub App authentication
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
 	if source.SkipSSLVerification {
 		os.Setenv("GIT_SSL_NO_VERIFY", "true")
 	}
 	if source.DisableGitLFS {
 		os.Setenv("GIT_LFS_SKIP_SMUDGE", "true")
 	}
+
+	var token *http.Client
+	if source.UseGitHubApp {
+		var ghAppInstallationTransport *ghinstallation.Transport
+		if source.PrivateKey != "" {
+			ghAppInstallationTransport, err = ghinstallation.New(transport, source.ApplicationID, source.InstallationID, []byte(source.PrivateKey))
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate application installation access token using private key: %s", err)
+			}
+		}
+
+		// Client using ghinstallation transport
+		token = &http.Client{
+			Transport: ghAppInstallationTransport,
+		}
+	} else {
+		token = source.AccessToken
+	}
 	return &GitClient{
-		AccessToken: source.AccessToken,
+		AccessToken: token,
 		Directory:   dir,
 		Output:      output,
 	}, nil
@@ -55,9 +80,16 @@ func (g *GitClient) command(name string, arg ...string) *exec.Cmd {
 	cmd.Stdout = g.Output
 	cmd.Stderr = g.Output
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env,
-		"X_OAUTH_BASIC_TOKEN="+g.AccessToken,
-		"GIT_ASKPASS=/usr/local/bin/askpass.sh")
+
+        if g.UseGitHubApp {
+		cmd.Env = append(cmd.Env,
+			"X_ACCESS_TOKEN="+g.AccessToken,
+			"GIT_ASKPASS=/usr/local/bin/askpass_github_app.sh")
+	} else {
+		cmd.Env = append(cmd.Env,
+			"X_OAUTH_BASIC_TOKEN="+g.AccessToken,
+			"GIT_ASKPASS=/usr/local/bin/askpass.sh")
+	}
 	return cmd
 }
 
@@ -75,8 +107,14 @@ func (g *GitClient) Init(branch string) error {
 	if err := g.command("git", "config", "user.email", "concourse@local").Run(); err != nil {
 		return fmt.Errorf("failed to configure git email: %s", err)
 	}
-	if err := g.command("git", "config", "url.https://x-oauth-basic@github.com/.insteadOf", "git@github.com:").Run(); err != nil {
-		return fmt.Errorf("failed to configure github url: %s", err)
+	if g.UseGitHubApp {
+		if err := g.command("git", "config", "url.https://x-access-token@github.com/.insteadOf", "git@github.com:").Run(); err != nil {
+			return fmt.Errorf("failed to configure github url for github app: %s", err)
+		}
+	} else {
+		if err := g.command("git", "config", "url.https://x-oauth-basic@github.com/.insteadOf", "git@github.com:").Run(); err != nil {
+			return fmt.Errorf("failed to configure github url for oauth: %s", err)
+		}
 	}
 	if err := g.command("git", "config", "url.https://.insteadOf", "git://").Run(); err != nil {
 		return fmt.Errorf("failed to configure github url: %s", err)
