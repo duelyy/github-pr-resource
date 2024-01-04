@@ -56,7 +56,7 @@ func (g *GitClient) command(name string, arg ...string) *exec.Cmd {
 	cmd.Stderr = g.Output
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env,
-		"X_OAUTH_BASIC_TOKEN="+g.AccessToken,
+		"X_ACCESS_TOKEN="+os.Getenv("GH_APP_TOKEN"),
 		"GIT_ASKPASS=/usr/local/bin/askpass.sh")
 	return cmd
 }
@@ -75,7 +75,7 @@ func (g *GitClient) Init(branch string) error {
 	if err := g.command("git", "config", "user.email", "concourse@local").Run(); err != nil {
 		return fmt.Errorf("failed to configure git email: %s", err)
 	}
-	if err := g.command("git", "config", "url.https://x-oauth-basic@github.com/.insteadOf", "git@github.com:").Run(); err != nil {
+	if err := g.command("git", "config", "url.https://x-access-token@github.com/.insteadOf", "git@github.com:").Run(); err != nil {
 		return fmt.Errorf("failed to configure github url: %s", err)
 	}
 	if err := g.command("git", "config", "url.https://.insteadOf", "git://").Run(); err != nil {
@@ -232,6 +232,6 @@ func (g *GitClient) Endpoint(uri string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse commit url: %s", err)
 	}
-	endpoint.User = url.UserPassword("x-oauth-basic", g.AccessToken)
+	endpoint.User = url.UserPassword("x-access-token", os.Getenv("GH_APP_TOKEN"))
 	return endpoint.String(), nil
 }
