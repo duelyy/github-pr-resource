@@ -8,7 +8,6 @@ import (
 	resource "github.com/telia-oss/github-pr-resource"
 )
 
-
 var key = `-----BEGIN RSA PRIVATE KEY-----
 MIIEpQIBAAKCAQEA0BUezcR7uycgZsfVLlAf4jXP7uFpVh4geSTY39RvYrAll0yh
 q7uiQypP2hjQJ1eQXZvkAZx0v9lBYJmX7e0HiJckBr8+/O2kARL+GTCJDJZECpjy
@@ -87,10 +86,10 @@ func TestSource(t *testing.T) {
 		{
 			description: "requires an application_id and installation_id GitHub App configuration values",
 			source: resource.Source{
-				Repository:     "test/test",
-				UseGitHubApp:   true,
-				PrivateKey:     key,
-				ApplicationID:  123456,
+				Repository:    "test/test",
+				UseGitHubApp:  true,
+				PrivateKey:    key,
+				ApplicationID: 123456,
 			},
 			wantErr: "application_id and installation_id must be set if using GitHub App authentication",
 		},
