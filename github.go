@@ -65,7 +65,7 @@ func NewGithubClient(s *Source) (*GithubClient, error) {
 		var ghAppInstallationTransport *ghinstallation.Transport
 		if s.PrivateKey != "" {
 			ghAppInstallationTransport, err = ghinstallation.New(transport, s.ApplicationID, s.InstallationID, []byte(s.PrivateKey))
-			getGhAppToken,_ := ghAppInstallationTransport.Token(context.TODO())
+			getGhAppToken, _ := ghAppInstallationTransport.Token(context.TODO())
 			os.Setenv("GH_APP_TOKEN", getGhAppToken)
 			if err != nil {
 				return nil, fmt.Errorf("failed to generate application installation access token using private key: %s", err)
